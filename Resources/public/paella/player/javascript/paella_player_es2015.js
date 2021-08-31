@@ -22,14 +22,20 @@ var GlobalParams = {
 
 window.paella = window.paella || {};
 paella.player = null;
-paella.version = "6.5.4 - build: d3168aaa";
+paella.version = "6.5.4 - build: 7867c98";
 
 (function buildBaseUrl() {
 	if (window.paella_debug_baseUrl) {
 		paella.baseUrl = window.paella_debug_baseUrl;
 	}
 	else {
-		paella.baseUrl = location.href.replace(/[^/]*$/, '');
+		var scripts = document.getElementsByTagName('script');
+		var script = scripts[scripts.length - 1].src.split("/");
+		script.pop(); // Remove javascript file name
+
+		script.pop(); // Remove javascript/ folder name
+
+		paella.baseUrl = script.join("/") + '/';
 	}
 })();
 
@@ -10753,7 +10759,7 @@ paella.addPlugin(function() {
 		getSubclass() { return 'integratedDurationButton'; }
 		getName() { return "es.teltek.paella.integratedDurationPlugin"; }
 		getDefaultToolTip() { return base.dictionary.translate("Duration"); }
-		getIndex() {return 190;}
+		getIndex() {return 10000;}
 
 		checkEnabled(onSuccess) {
 			onSuccess(true);
@@ -12715,10 +12721,14 @@ paella.addPlugin(() => {
 			let breakMessage = "";
 			if (this.breaks.some((breakItem) => {
 				if (breakItem.s<=currentTime && breakItem.e>=currentTime) {
-					if (eventType==paella.events.timeUpdate && !this.status) {
-						this.skipTo(breakItem.e);
+						
+					this.skipTo(breakItem.e);
+					
+					breakMessage = breakItem.name;
+					
+					if(paella.player.config.plugins.list[this.getName()].neverShow) {
+						return false;
 					}
-					breakMessage = breakItem.text;
 					return true;
 				}
 			})) {
@@ -12732,15 +12742,30 @@ paella.addPlugin(() => {
 		}
 
 		skipTo(time) {
+			var areBreaksClickable = paella.player.config.plugins.list[this.getName()].neverShow;
+			var newTime = time + (areBreaksClickable ? .5 : 0);
+
 			paella.player.videoContainer.trimming()
 				.then((trimming) => {
 					if (trimming.enabled) {
-						paella.player.videoContainer.seekToTime(time - trimming.start);
+						if (time >= trimming.end) {
+							newTime = 0;
+							paella.player.videoContainer.pause();
+						} else {
+							newTime = time + (areBreaksClickable ? .5 : 0) - trimming.start;
+						}
+						paella.player.videoContainer.seekToTime(newTime);
 					}
 					else {
-						paella.player.videoContainer.seekToTime(time);
+						return paella.player.videoContainer.duration(true);
 					}
-				})
+				}).then((duration) => {
+					if (time >= duration) {
+					  newTime = 0;
+					  paella.player.videoContainer.pause();
+					}
+					paella.player.videoContainer.seekToTime(newTime);
+				});
 		}
 
 		showMessage(text) {
@@ -12754,7 +12779,7 @@ paella.addPlugin(() => {
 					width: 1080,
 					height: 40
 				};
-				this.currentText = text;
+				this.currentText = text || "Break";
 				this.messageContainer = paella.player.videoContainer.overlayContainer.addText(paella.utils.dictionary.translate(text), rect);
 				this.messageContainer.className = 'textBreak';
 				this.currentText = text;

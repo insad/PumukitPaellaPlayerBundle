@@ -69,7 +69,7 @@ var GlobalParams = {
 };
 window.paella = window.paella || {};
 paella.player = null;
-paella.version = "6.5.4 - build: d3168aaa";
+paella.version = "6.5.4 - build: 7867c98";
 
 (function buildBaseUrl() {
   if (window.paella_debug_baseUrl) {
@@ -13489,95 +13489,101 @@ paella.addPlugin(function () {
     return integratedDurationPlugin;
   }(paella.ButtonPlugin);
 });
-paella.addPlugin(function() {
-  return class PlaylistPlugin extends paella.ButtonPlugin {        
-      getAlignment() { return 'left'; }
-      getSubclass() { return "playlistPlugin"; }
-      getIndex() { return 400; }
-      getName() { return "es.teltek.paella.playlistPlugin"; }
-      getDefaultToolTip() { return base.dictionary.translate("Playlist"); }
-      getButtonType() { return paella.ButtonPlugin.type.popUpButton; }
-  
-      checkEnabled(onSuccess) {        
-          this._currentPlaylistId = paella.utils.parameters.get("playlistId");
-          this._currentVideoId = paella.utils.parameters.get("videoId");
-          this._currentVideoPos = paella.utils.parameters.get("videoPos");
-          this._currentVideo=null;
-          this._playlistVideos=[];
-  
-          if (this._currentPlaylistId && this._currentVideoId && this._currentVideoPos){
-              onSuccess(true);
-              }
-          else {
-              onSuccess(false);
-              }
-          }
-      findVideo() {
-          var currentVideo = null;
-          var playlistPlugin = this;
-          this._playlistVideos.find(function(item){
-              if(item.id == playlistPlugin._currentVideoId) {
-                  currentVideo = item;
-                  if(item.pos == playlistPlugin._currentVideoPos) {
-                      return true;
-                      }
-                  return false;
-                  }
-              });
-          return currentVideo;
-          }
-      setup() {
-          var url = this.config.playlistApi + "/" + this._currentPlaylistId;
-          var playlistPlugin = this;
-          paella.utils.ajax.get(
-              {url: url},
-              function(data, contentType, returnCode) {
-                  playlistPlugin._playlistVideos = data;
-                  playlistPlugin._currentVideo = playlistPlugin.findVideo();
-                  //Is there a better way to relaunch buildContent?
-                  var container = playlistPlugin.containerManager.containers[playlistPlugin.getName()];
-                  if(container && container.element)
-                      playlistPlugin.buildContent(container.element);
-                  }
-              );
-          paella.events.bind(
-              paella.events.endVideo,
-              function(event){
-                  playlistPlugin.goToNextVideo();
-                  }
-              );
-          }
-  
-      buildContent(domElement) {
-          //Removes every element.
-          while(domElement.hasChildNodes()){
-              domElement.removeChild(domElement.lastChild);
-              }
-          var playlistPlugin = this;
-          this._playlistVideos.forEach(function(item){
-              var elem = document.createElement('div');
-              elem.className = "videobutton"+ (item == playlistPlugin._currentVideo  ?' playing':'');
-              elem.innerHTML = item.name;
-              $(elem).click(function(event) {
-                  window.location.href=item.url;
-                  });
-              domElement.appendChild(elem);
-              });
-          }
-  
-      goToNextVideo(){
-          var playlistPlugin = this;
-          var index = this._playlistVideos.findIndex(
-              function(elem){
-                  return elem == playlistPlugin._currentVideo;
-                  }
-              );
-          var length = this._playlistVideos.length;
-          var next = this._playlistVideos[(index + 1) % length];
-          window.location.href = next.url;
+Class("paella.plugins.playlistPlugin", paella.ButtonPlugin, {
+  currentPlaylistId: null,
+  currentVideoId: null,
+  currentVideoPos: null,
+  currentVideo: null,
+  playlistVideos: [],
+  getAlignment: function getAlignment() {
+    return 'left';
+  },
+  getSubclass: function getSubclass() {
+    return "playlistPlugin";
+  },
+  getIndex: function getIndex() {
+    return 400;
+  },
+  getName: function getName() {
+    return "es.teltek.paella.playlistPlugin";
+  },
+  getDefaultToolTip: function getDefaultToolTip() {
+    return paella.utils.dictionary.translate("Playlist");
+  },
+  getButtonType: function getButtonType() {
+    return paella.ButtonPlugin.type.popUpButton;
+  },
+  checkEnabled: function checkEnabled(onSuccess) {
+    this.currentPlaylistId = paella.utils.parameters.get("playlistId");
+    this.currentVideoId = paella.utils.parameters.get("videoId");
+    this.currentVideoPos = paella.utils.parameters.get("videoPos");
+
+    if (this.currentPlaylistId && this.currentVideoId && this.currentVideoPos) {
+      onSuccess(true);
+    } else {
+      onSuccess(false);
+    }
+  },
+  findVideo: function findVideo() {
+    var currentVideo = null;
+    var playlistPlugin = this;
+    this.playlistVideos.find(function (item) {
+      if (item.id == playlistPlugin.currentVideoId) {
+        currentVideo = item;
+
+        if (item.pos == playlistPlugin.currentVideoPos) {
+          return true;
+        }
+
+        return false;
       }
+    });
+    return currentVideo;
+  },
+  setup: function setup() {
+    var url = this.config.playlistApi + "/" + this.currentPlaylistId;
+    var playlistPlugin = this;
+    paella.utils.ajax.get({
+      url: url
+    }, function (data, contentType, returnCode) {
+      playlistPlugin.playlistVideos = data;
+      playlistPlugin.currentVideo = playlistPlugin.findVideo(); //Is there a better way to relaunch buildContent?
+
+      var container = playlistPlugin.containerManager.containers[playlistPlugin.getName()];
+      if (container && container.element) playlistPlugin.buildContent(container.element);
+    });
+    paella.events.bind(paella.events.endVideo, function (event) {
+      playlistPlugin.goToNextVideo();
+    });
+  },
+  buildContent: function buildContent(domElement) {
+    //Removes every element.
+    while (domElement.hasChildNodes()) {
+      domElement.removeChild(domElement.lastChild);
+    }
+
+    var playlistPlugin = this;
+    this.playlistVideos.forEach(function (item) {
+      var elem = document.createElement('div');
+      elem.className = "videobutton" + (item == playlistPlugin.currentVideo ? ' playing' : '');
+      elem.innerHTML = item.name;
+      $(elem).click(function (event) {
+        window.location.href = item.url;
+      });
+      domElement.appendChild(elem);
+    });
+  },
+  goToNextVideo: function goToNextVideo() {
+    var playlistPlugin = this;
+    var index = this.playlistVideos.findIndex(function (elem) {
+      return elem == playlistPlugin.currentVideo;
+    });
+    var length = this.playlistVideos.length;
+    var next = this.playlistVideos[(index + 1) % length];
+    window.location.href = next.url;
   }
 });
+paella.plugins.playlistPlugin = new paella.plugins.playlistPlugin();
 paella.addPlugin(function () {
   return /*#__PURE__*/function (_paella$userTracking$) {
     _inherits(xAPISaverPlugin, _paella$userTracking$);
@@ -16097,11 +16103,14 @@ paella.addPlugin(function () {
 
         if (this.breaks.some(function (breakItem) {
           if (breakItem.s <= currentTime && breakItem.e >= currentTime) {
-            if (eventType == paella.events.timeUpdate && !_this148.status) {
-              _this148.skipTo(breakItem.e);
-            }
+            _this148.skipTo(breakItem.e);
 
             breakMessage = breakItem.name;
+
+            if (paella.player.config.plugins.list[_this148.getName()].neverShow) {
+              return false;
+            }
+
             return true;
           }
         })) {
@@ -16115,16 +16124,17 @@ paella.addPlugin(function () {
     }, {
       key: "skipTo",
       value: function skipTo(time) {
-        var newTime = time;
-        
+        var areBreaksClickable = paella.player.config.plugins.list[this.getName()].neverShow;
+        var newTime = time + (areBreaksClickable ? .5 : 0);
         paella.player.videoContainer.trimming().then(function (trimming) {
           if (trimming.enabled) {
             if (time >= trimming.end) {
               newTime = 0;
               paella.player.videoContainer.pause();
             } else {
-              newTime = time - trimming.start;
+              newTime = time + (areBreaksClickable ? .5 : 0) - trimming.start;
             }
+
             paella.player.videoContainer.seekToTime(newTime);
           } else {
             return paella.player.videoContainer.duration(true);
@@ -16134,6 +16144,7 @@ paella.addPlugin(function () {
             newTime = 0;
             paella.player.videoContainer.pause();
           }
+
           paella.player.videoContainer.seekToTime(newTime);
         });
       }
@@ -16151,7 +16162,6 @@ paella.addPlugin(function () {
             width: 1080,
             height: 40
           };
-
           this.currentText = text || "Break";
           this.messageContainer = paella.player.videoContainer.overlayContainer.addText(paella.utils.dictionary.translate(text), rect);
           this.messageContainer.className = 'textBreak';
